@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Habit Check-in</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-950 text-neutral-100">
+    <div class="max-w-3xl mx-auto p-6">
+      <h1 class="text-2xl font-semibold mb-6">Habit Check-in</h1>
+
+      <form id="logForm" class="grid grid-cols-1 gap-4 bg-neutral-900 rounded-2xl p-5 shadow" novalidate>
+  <!-- Habit -->
+  <div>
+    <label for="habit" class="block text-sm mb-1">Habit</label>
+    <select name="habit" id="habit" class="w-full bg-neutral-800 rounded px-3 py-2" aria-describedby="habitHelp" required>
+      {% for h in habits %}
+        <option value="{{h}}">{{h}}</option>
+      {% endfor %}
+    </select>
+    <p id="habitHelp" class="sr-only">Choose a habit to log</p>
+</div>
+
+<div class="flex space-x-4">
+    <a href="{{ url_for('manage') }}" class="text-sm underline text-neutral-400">Manage habits →</a>
+    <a href="{{ url_for('dashboard') }}" class="underline text-neutral-400 flex-justify-content-end">Dashboard →</a>
+</div>
+  <!-- Value + Date -->
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label for="value" class="block text-sm mb-1">Value</label>
+      <input
+        name="value" id="value" type="number" step="any" inputmode="decimal"
+        class="w-full bg-neutral-800 rounded px-3 py-2"
+        placeholder="e.g., 15"
+        aria-describedby="unitHint"
+      />
+      <p id="unitHint" class="text-xs text-neutral-400 mt-1"></p>
+    </div>
+    <div>
+      <label for="date" class="block text-sm mb-1">Date</label>
+      <input
+        name="date" id="date" type="text"
+        class="w-full bg-neutral-800 rounded px-3 py-2"
+        value="{{ today }}"
+        placeholder="YYYY-MM-DD"
+        aria-label="Date in format YYYY-MM-DD"
+      />
+    </div>
+  </div>
+
+  <!-- Note -->
+  <div>
+    <label for="note" class="block text-sm mb-1">Note</label>
+    <textarea
+      name="note" id="note" rows="3"
+      class="w-full bg-neutral-800 rounded px-3 py-2"
+      placeholder="Optional details (what you did, how it went)…"
+    ></textarea>
+  </div>
+
+  <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 rounded-xl px-4 py-2 font-medium w-fit">
+    Log it
+  </button>
+  <p id="msg" class="text-sm mt-1" aria-live="polite"></p>
+</form>
+
+<script id="unitsData" type="application/json">{{ units|tojson }}</script>
+<script>
+  let UNITS_MAP = JSON.parse(document.getElementById('unitsData').textContent);
+
+  const habitSel = document.getElementById('habit');
+  const unitHint = document.getElementById('unitHint');
+
+  function updateUnitHint(){
+    const h = habitSel.value;
+    unitHint.textContent = UNITS_MAP[h] ? `Unit: ${UNITS_MAP[h]}` : '';
+  }
+
+  async function refreshHabitsDropdown() {
+    try {
+      const res = await fetch('/api/habits');
+      const data = await res.json();
+      const current = habitSel.value;
+
+      // rebuild options
+      habitSel.innerHTML = '';
+      for (const h of data.habits) {
+        const opt = document.createElement('option');
+        opt.value = h; opt.textContent = h;
+        habitSel.appendChild(opt);
+      }
+
+      // update units map + restore selection if still present
+      UNITS_MAP = data.units;
+      if (data.habits.includes(current)) habitSel.value = current;
+
+      updateUnitHint();
+    } catch(e) {
+      console.warn('refreshHabitsDropdown failed:', e);
+    }
+  }
+
+  habitSel.addEventListener('change', updateUnitHint);
+  updateUnitHint();
+
+  // listen for changes from /manage
+  const habitsChannel = new BroadcastChannel('habits');
+  habitsChannel.onmessage = (ev) => {
+    if (ev?.data?.type === 'refresh') refreshHabitsDropdown();
+  };
+</script>
+
+
+  </body>
+</html>

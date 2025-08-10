@@ -1,13 +1,79 @@
-#!/usr/bin/env python3
-# weekly_report.py VERSION = 1.1
-import csv, os
+
+# weekly_report.py VERSION = 1.2 (CSV + Notion page)
+import csv, os, requests
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 HABITS = os.path.join(BASE, "habits.csv")
-LOG = os.path.join(BASE, "habit_log.csv")
+LOG    = os.path.join(BASE, "habit_log.csv")
 
+# --- Notion wiring for Reports ---
+NOTION_TOKEN  = os.getenv("NOTION_TOKEN")
+NOTION_DB_RPT = os.getenv("NOTION_DB_REPORTS")
+NOTION_API    = "https://api.notion.com/v1"
+NOTION_VER    = "2022-06-28"
+
+def _n_headers():
+    return {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": NOTION_VER
+    }
+
+def create_report_page(wk_start, wk_end, rows):
+    """Create a simple weekly summary page in the Habit Reports DB."""
+    if not (NOTION_TOKEN and NOTION_DB_RPT):
+        return "(notion skipped: env not set)"
+
+    title = f"Week {wk_start} → {wk_end}"
+    # 1) Create page in Reports DB
+    payload = {
+        "parent": {"database_id": NOTION_DB_RPT},
+        "properties": {
+            "Name": {"title":[{"type":"text","text":{"content": title}}]},
+            "Week Start": {"date":{"start": wk_start.isoformat()}},
+            "Week End":   {"date":{"start": wk_end.isoformat()}}
+        }
+    }
+
+    r = requests.post(f"{NOTION_API}/pages", headers=_n_headers(), json=payload, timeout=30)
+    if r.status_code >= 300:
+        raise Exception(f"create_page {r.status_code}: {r.text}")
+    page_id = r.json()["id"]
+
+# 2) blocks to append
+    children = []   # <-- define BEFORE if/else
+    if rows:
+        done = sum(1 for x in rows if x["entries_this_week"] > 0)
+        summary = f"{done}/{len(rows)} habits logged this week."
+        children.append({
+            "object":"block","type":"paragraph",
+            "paragraph":{"rich_text":[{"type":"text","text":{"content":summary}}]}
+        })
+        for x in rows:
+            line = (f"{x['habit']}: {x['total_this_week']} {x['unit']} | "
+                    f"{x['entries_this_week']} entries | "
+                    f"{x['completion_pct']}% | streak {x['daily_streak_days']}d")
+            children.append({
+                "object":"block","type":"bulleted_list_item",
+                "bulleted_list_item":{"rich_text":[{"type":"text","text":{"content":line}}]}
+            })
+    else:
+        children.append({
+            "object":"block","type":"paragraph",
+            "paragraph":{"rich_text":[{"type":"text","text":{"content":"No active habits or logs this week."}}]}
+        })
+
+    r2 = requests.patch(f"{NOTION_API}/blocks/{page_id}/children",
+                        headers=_n_headers(),
+                        json={"children": children},
+                        timeout=30)
+    if r2.status_code >= 300:
+        raise Exception(f"append_children {r2.status_code}: {r2.text}")
+    return page_id
+
+# --- CSV helpers ---
 def load_habits():
     cfg = {}
     with open(HABITS, newline="", encoding="utf-8-sig") as f:
@@ -60,6 +126,7 @@ def compute_streak(entries, habit):
         streak += 1; cur -= timedelta(days=1)
     return streak
 
+# --- Main ---
 def main():
     cfg = load_habits()
     logs = load_logs()
@@ -118,6 +185,13 @@ def main():
     for r in rows:
         print(" | ".join(str(r[k]).ljust(widths[k]) for k in fieldnames))
     print(f"\nReport saved to: {out_path}")
+
+    # --- Create Notion weekly page (best-effort) ---
+    try:
+        nid = create_report_page(wk_start, wk_end, rows)
+        print("Notion report:", nid)
+    except Exception as e:
+        print("Notion report error (CSV saved):", e)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Manage Habits</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-950 text-neutral-100">
+    <div class="max-w-5xl mx-auto p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold">Manage Habits</h1>
+        <a href="/" class="text-sm underline text-neutral-400"
+          >← Back to Check-in</a
+        >
+      </div>
+
+      <!-- Add form -->
+      <h2 class="text-lg font-medium mb-3">Add New Habit</h2>
+
+      <form
+        id="addForm"
+        method="POST"
+        action="/manage/add"
+        class="bg-neutral-900 rounded-2xl p-4 grid grid-cols-6 gap-4 mb-6"
+      >
+        <div class="col-span-2">
+          <label for="habit" class="block text-sm mb-1">Habit name</label>
+          <input
+            id="habit"
+            name="habit"
+            required
+            placeholder="e.g., Piano, Reading"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          />
+        </div>
+
+        <div class="col-span-2">
+          <label for="category" class="block text-sm mb-1">Category</label>
+          <input
+            id="category"
+            name="category"
+            placeholder="e.g., Instrument Hobby"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          />
+        </div>
+
+        <div class="col-span-2">
+          <label for="cadence" class="block text-sm mb-1">Cadence</label>
+          <select
+            id="cadence"
+            name="cadence"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          >
+            <option value="daily">daily</option>
+            <option value="weekly" selected>weekly</option>
+          </select>
+        </div>
+
+        <div class="col-span-2">
+          <label for="target_per_week" class="block text-sm mb-1"
+            >Target per week</label
+          >
+          <input
+            id="target_per_week"
+            name="target_per_week"
+            type="number"
+            step="any"
+            value="0"
+            placeholder="e.g., 3"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          />
+        </div>
+
+        <div class="col-span-2">
+          <label for="unit" class="block text-sm mb-1">Unit</label>
+          <input
+            id="unit"
+            name="unit"
+            placeholder="minutes, sessions, reps…"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          />
+        </div>
+
+        <div class="col-span-2">
+          <label for="xp_per_unit" class="block text-sm mb-1"
+            >XP per unit</label
+          >
+          <input
+            id="xp_per_unit"
+            name="xp_per_unit"
+            type="number"
+            step="any"
+            value="0"
+            placeholder="e.g., 10"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+          />
+        </div>
+
+        <div class="col-span-6 flex justify-end">
+          <button
+            type="submit"
+            class="bg-emerald-600 hover:bg-emerald-500 rounded-xl px-4 py-2"
+          >
+            Add Habit
+          </button>
+        </div>
+
+        <p id="addMsg" class="text-sm col-span-6"></p>
+      </form>
+
+      <hr />
+      <h2>Manage Existing Habits</h2>
+      <!-- Habit list table or buttons go here -->
+
+      <!-- Table -->
+      <table class="w-full text-sm">
+        <thead class="text-neutral-400">
+          <tr>
+            <th class="text-left py-2">Habit</th>
+            <th class="text-left">Category</th>
+            <th class="text-left">Cadence</th>
+            <th class="text-left">Target/wk</th>
+            <th class="text-left">Unit</th>
+            <th class="text-left">Active</th>
+            <th class="text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          {% for r in rows %}
+          <tr class="border-t border-neutral-800">
+            <td class="py-2">{{ r.habit }}</td>
+            <td>{{ r.category }}</td>
+            <td>{{ r.cadence }}</td>
+            <td>{{ r.target_per_week }}</td>
+            <td>{{ r.unit }}</td>
+            <td>
+              <button
+                class="toggle bg-neutral-800 rounded px-2 py-1 text-xs"
+                data-h="{{ r.habit }}"
+              >
+                {{ 'on' if r.active|lower=='true' else 'off' }}
+              </button>
+            </td>
+            <td>
+              <button
+                class="delete bg-red-700 rounded px-2 py-1 text-xs"
+                data-h="{{ r.habit }}"
+              >
+                Delete
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      // shared channel to notify other tabs/windows
+      const habitsCHannel = new BroadcastChannel("habits");
+
+      document
+        .getElementById("addForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const f = new FormData(e.target);
+          const res = await fetch("/manage/add", { method: "POST", body: f });
+          const j = await res.json();
+          const m = document.getElementById("addMsg");
+          m.textContent = j.ok ? "Added ✓" : "Error: " + (j.error || "");
+          m.className =
+            "text-sm " + (j.ok ? "text-emerald-400" : "text-red-400");
+          if (j.ok) {
+            habitsChannel.postMessage({ type: "refresh" }); // <— notify “/”
+            location.reload();
+          }
+          <input
+            id="xp"
+            name="xp_per_unit"
+            type="number"
+            step="any"
+            class="bg-neutral-800 rounded px-3 py-2 w-full"
+            placeholder="XP per unit (e.g., 10)"
+          />;
+        });
+
+      document.querySelectorAll("button.toggle").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const f = new FormData();
+          f.append("habit", btn.dataset.h);
+          const res = await fetch("/manage/toggle", {
+            method: "POST",
+            body: f,
+          });
+          const j = await res.json();
+          if (j.ok) {
+            habitsChannel.postMessage({ type: "refresh" });
+            location.reload();
+          } else alert(j.error || "Error");
+        });
+      });
+
+      document.querySelectorAll("button.delete").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this habit?")) return;
+          const f = new FormData();
+          f.append("habit", btn.dataset.h);
+          const res = await fetch("/manage/delete", {
+            method: "POST",
+            body: f,
+          });
+          const j = await res.json();
+          if (j.ok) {
+            habitsChannel.postMessage({ type: "refresh" });
+            location.reload();
+          } else alert(j.error || "Error");
+        });
+      });
+    </script>
+  </body>
+</html>
