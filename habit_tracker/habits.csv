@@ -1,1 +1,4 @@
 habit,category,cadence,target_per_week,unit,active
+Piano, Instrument Hobby, weekly, 3, sessions, true
+Coding (FreeCodeCamp), Career Hobby, daily, 45, minutes, true
+Silence, Peace Hobby, daily, 30, true
